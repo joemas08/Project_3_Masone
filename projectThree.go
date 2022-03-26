@@ -2,10 +2,13 @@ package main
 
 import (
 	"embed"
+	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"image/png"
 	"log"
+	"math/rand"
+	"time"
 )
 
 //go:embed assets/*
@@ -26,32 +29,58 @@ type Sprite struct {
 }
 
 type enemySprite struct {
-	pict *ebiten.Image
-	xloc int
-	yloc int
+	pict        *ebiten.Image
+	xloc        int
+	yloc        int
+	isCollected bool
 }
 
 type Game struct {
-	player   Sprite
-	enemy    enemySprite
-	score    int
-	drawOps  ebiten.DrawImageOptions
-	gameName string
+	player       Sprite
+	enemy        []enemySprite
+	score        int
+	drawOps      ebiten.DrawImageOptions
+	gameName     string
+	collectedGas bool
+}
+
+func gotGas(player Sprite, enemy enemySprite) bool {
+	return hasCollided(player, enemy)
 }
 
 func (g *Game) Update() error {
 	processPlayerInput(g)
+	for i := 0; i < len(g.enemy); i++ {
+		if g.collectedGas == false {
+			if len(g.enemy) == 1 {
+				if gotGas(g.player, g.enemy[0]) {
+					g.score += 1
+					g.collectedGas = true
+					fmt.Println("Collected all gas")
+				}
+			}
+		}
+	}
 	return nil
 }
 
-func (g Game) Draw(screen *ebiten.Image) {
-	g.drawOps.GeoM.Reset()
-	g.drawOps.GeoM.Translate(float64(g.enemy.xloc), float64(g.enemy.yloc))
-	screen.DrawImage(g.enemy.pict, &g.drawOps)
+func (g *Game) Draw(screen *ebiten.Image) {
+
 	g.drawOps.GeoM.Reset()
 	g.drawOps.GeoM.Translate(float64(g.player.xloc), float64(g.player.yloc))
 	screen.DrawImage(g.player.pict, &g.drawOps)
-
+	for i := 0; i < len(g.enemy); i++ {
+		if !g.collectedGas {
+			g.drawOps.GeoM.Reset()
+			g.drawOps.GeoM.Translate(float64(g.enemy[i].xloc), float64(g.enemy[i].yloc))
+			screen.DrawImage(g.enemy[i].pict, &g.drawOps)
+			if hasCollided(g.player, g.enemy[i]) {
+				g.enemy[i].isCollected = true
+				g.enemy = remove(g.enemy, i)
+				g.score += 1
+			}
+		}
+	}
 }
 
 func (g Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -111,20 +140,46 @@ func main() {
 	carGame := Game{score: 0, gameName: "Car Game"}
 	ebiten.SetWindowSize(GameWidth, GameHeight)
 	ebiten.SetWindowTitle(carGame.gameName)
-	carGame.player = Sprite{
-		pict: loadPNGImageFromEmbedded("car.png"),
-		xloc: 200,
-		yloc: 300,
-		dX:   0,
-		dY:   0,
-	}
-
-	carGame.enemy = enemySprite{
-		pict: loadPNGImageFromEmbedded("jerry_can.png"),
-		xloc: 300,
-		yloc: 300,
-	}
+	carGame.enemy = carGame.populateSlice(carGame.enemy)
+	loadImages(&carGame)
+	carGame.player.yloc = GameHeight / 2
 	if err := ebiten.RunGame(&carGame); err != nil {
 		log.Fatal("Oh no! something terrible happened and the game crashed", err)
 	}
+}
+
+func loadImages(g *Game) {
+	car := loadPNGImageFromEmbedded("car.png")
+	g.player.pict = car
+	jerryCan := loadPNGImageFromEmbedded("jerry_can.png")
+	for i := 0; i < len(g.enemy); i++ {
+		g.enemy[i].pict = jerryCan
+	}
+}
+
+func (g *Game) populateSlice(slice []enemySprite) []enemySprite {
+	rand.Seed(int64(time.Now().Second()))
+	newSlice := make([]enemySprite, 10)
+	for i := 0; i < len(newSlice); i++ {
+		newSlice[i].xloc = rand.Intn(GameWidth - 50)
+		newSlice[i].yloc = rand.Intn(GameHeight - 50)
+	}
+	return newSlice
+}
+
+func hasCollided(player Sprite, enemy enemySprite) bool {
+	canWidth, canHeight := enemy.pict.Size()
+	playerWidth, playerHeight := player.pict.Size()
+	if player.xloc < enemy.xloc+canWidth &&
+		player.xloc+playerWidth > enemy.xloc &&
+		player.yloc < enemy.yloc+canHeight &&
+		player.yloc+playerHeight > enemy.yloc {
+		enemy.isCollected = true
+		return true
+	}
+	return false
+}
+
+func remove(slice []enemySprite, s int) []enemySprite {
+	return append(slice[:s], slice[s+1:]...)
 }
