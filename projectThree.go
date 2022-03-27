@@ -3,8 +3,14 @@ package main
 import (
 	"embed"
 	"fmt"
+	"github.com/hajimehoshi/ebiten/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/text"
+	"golang.org/x/image/colornames"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/opentype"
+	"image/color"
 	"image/png"
 	"log"
 	"math/rand"
@@ -13,6 +19,11 @@ import (
 
 //go:embed assets/*
 var EmbeddedAssets embed.FS
+
+var (
+	mplusNormalFont font.Face
+	mplusBigFont    font.Face
+)
 
 const (
 	GameWidth   = 1400
@@ -44,8 +55,42 @@ type Game struct {
 	collectedGas bool
 }
 
-func gotGas(player Sprite, enemy enemySprite) bool {
-	return hasCollided(player, enemy)
+func init() {
+	tt, err := opentype.Parse(fonts.MPlus1pRegular_ttf)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	const dpi = 72
+	mplusNormalFont, err = opentype.NewFace(tt, &opentype.FaceOptions{
+		Size:    24,
+		DPI:     dpi,
+		Hinting: font.HintingFull,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	mplusBigFont, err = opentype.NewFace(tt, &opentype.FaceOptions{
+		Size:    48,
+		DPI:     dpi,
+		Hinting: font.HintingFull,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func main() {
+	carGame := Game{gameName: "Car Game"}
+	ebiten.SetWindowSize(GameWidth, GameHeight)
+	ebiten.SetWindowTitle(carGame.gameName)
+	ebiten.SetFullscreen(false)
+	carGame.enemy = carGame.populateSlice(carGame.enemy)
+	loadImages(&carGame)
+	carGame.player.yloc = GameHeight / 2
+	if err := ebiten.RunGame(&carGame); err != nil {
+		log.Fatal("Oh no! something terrible happened and the game crashed", err)
+	}
 }
 
 func (g *Game) Update() error {
@@ -56,7 +101,7 @@ func (g *Game) Update() error {
 				if gotGas(g.player, g.enemy[0]) {
 					g.score += 1
 					g.collectedGas = true
-					fmt.Println("Collected all gas")
+					//os.Exit(0)
 				}
 			}
 		}
@@ -65,7 +110,11 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-
+	screen.Fill(colornames.Steelblue)
+	text.Draw(screen, fmt.Sprintf("Score: %d", g.score), mplusNormalFont, 20, 40, color.White)
+	if g.collectedGas {
+		text.Draw(screen, "Game Over", mplusNormalFont, GameWidth/2-100, GameHeight/2, color.White)
+	}
 	g.drawOps.GeoM.Reset()
 	g.drawOps.GeoM.Translate(float64(g.player.xloc), float64(g.player.yloc))
 	screen.DrawImage(g.player.pict, &g.drawOps)
@@ -136,18 +185,6 @@ func processPlayerInput(theGame *Game) {
 	}
 }
 
-func main() {
-	carGame := Game{score: 0, gameName: "Car Game"}
-	ebiten.SetWindowSize(GameWidth, GameHeight)
-	ebiten.SetWindowTitle(carGame.gameName)
-	carGame.enemy = carGame.populateSlice(carGame.enemy)
-	loadImages(&carGame)
-	carGame.player.yloc = GameHeight / 2
-	if err := ebiten.RunGame(&carGame); err != nil {
-		log.Fatal("Oh no! something terrible happened and the game crashed", err)
-	}
-}
-
 func loadImages(g *Game) {
 	car := loadPNGImageFromEmbedded("car.png")
 	g.player.pict = car
@@ -178,6 +215,10 @@ func hasCollided(player Sprite, enemy enemySprite) bool {
 		return true
 	}
 	return false
+}
+
+func gotGas(player Sprite, enemy enemySprite) bool {
+	return hasCollided(player, enemy)
 }
 
 func remove(slice []enemySprite, s int) []enemySprite {

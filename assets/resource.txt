@@ -1,4 +1,7 @@
 https://www.pngkey.com/download/u2q8e6e6i1w7o0o0_car-top-down-view/ - car png website link
+
 https://www.cleanpng.com/png-gasoline-jerrycan-computer-icons-fuel-jerrycan-650431/download-png.html - jerry can png link
 
-https://stackoverflow.com/questions/37334119/how-to-delete-an-element-from-a-slice-in-golang - line 74 how to remove slice element
+https://stackoverflow.com/questions/37334119/how-to-delete-an-element-from-a-slice-in-golang - used for my remove function
+
+https://ebiten.org/examples/font.html - used for getting score onto game screen
